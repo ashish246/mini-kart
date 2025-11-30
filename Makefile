@@ -111,7 +111,7 @@ test-coverage:
 # lint: Run linter
 lint:
 	@echo "Running linter..."
-	@go vet ./cmd/... ./internal/...
+	@golangci-lint run
 	@go fmt ./cmd/... ./internal/...
 
 # format: Format code

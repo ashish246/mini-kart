@@ -1,12 +1,13 @@
 # Mini-Kart API
 
-A Go-based e-commerce API server with product management, order processing, and promotional code validation.
+A Go-based e-commerce API server with product management, order processing, and promotional code validation. The original ask and requirements are taken from this [README.md](https://github.com/oolio-group/kart-challenge/blob/advanced-challenge/backend-challenge/README.md).
 
 ## Features
 
 - **Product Management**: Browse and retrieve product information
 - **Order Processing**: Create and retrieve orders with multiple items
 - **Promotional Code Validation**: Concurrent validation of promo codes across multiple sources
+- **AWS S3 Integration**: Load coupon files from S3 with automatic local fallback
 - **RESTful API**: Clean HTTP endpoints with proper error handling
 - **Database**: PostgreSQL for persistent storage
 - **Authentication**: API key-based authentication
@@ -17,6 +18,7 @@ A Go-based e-commerce API server with product management, order processing, and 
 
 - **Language**: Go 1.25.4
 - **Database**: PostgreSQL 16
+- **Cloud Storage**: AWS S3 (optional, with local fallback)
 - **Testing**: Testcontainers for integration tests
 - **Logging**: Structured logging with zerolog
 - **HTTP**: Standard library net/http
@@ -61,11 +63,13 @@ mini-kart/
 ### Environment Setup
 
 1. Copy the example environment file:
+
 ```bash
 cp .env.example .env
 ```
 
 2. Update the `.env` file with your configuration:
+
 ```bash
 # Required: Set a secure API key
 API_KEY=your_secure_api_key_here
@@ -194,8 +198,9 @@ GET /health
 No authentication required.
 
 **Response:**
+
 ```json
-{"status": "healthy"}
+{ "status": "healthy" }
 ```
 
 ### Products
@@ -208,10 +213,12 @@ X-API-Key: your_api_key
 ```
 
 **Query Parameters:**
+
 - `limit` (optional): Number of products to return (default: 10, max: 100)
 - `offset` (optional): Number of products to skip (default: 0)
 
 **Response:**
+
 ```json
 [
   {
@@ -232,6 +239,7 @@ X-API-Key: your_api_key
 ```
 
 **Response:**
+
 ```json
 {
   "id": "P001",
@@ -267,6 +275,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -355,6 +364,7 @@ make generate-coupons
 ```
 
 This creates three gzipped coupon files in `data/coupons/` with known test data:
+
 - **Valid codes** (appear in 2+ files): `VALIDONE1`, `VALIDTWO12`, `ALLTHREE1`, `SUMMER2024`, `WINTER2024`
 - **Invalid codes** (appear in only 1 file): `ONLYONE111`, `ONLYTWO222`, `ONLYTHREE3`, `SPRING2024`
 
@@ -367,6 +377,7 @@ make test-db-connection
 ```
 
 Expected output:
+
 ```
 Successfully connected to database: minikart
 ```
@@ -380,6 +391,7 @@ make test-pg-server
 ```
 
 Expected output:
+
 ```
 Successfully connected to database: postgres
 
@@ -404,6 +416,7 @@ make build
 ### Test Coverage
 
 The project maintains high test coverage:
+
 - **Overall Coverage**: 82.6%
 - **Coupon Validation**: 95.0%
 - **HTTP Handlers**: 94.9%
@@ -440,6 +453,40 @@ All configuration is managed through environment variables. See `.env.example` f
 
 - `API_KEY`: API key for authentication (required)
 
+### AWS S3 Configuration
+
+The application supports loading coupon files from AWS S3 with automatic fallback to local file system. This is useful for production deployments where coupon files are stored centrally in S3.
+
+- `S3_ENABLED`: Enable S3 for coupon files - true or false (default: false)
+- `S3_BUCKET`: S3 bucket name (required when S3_ENABLED=true)
+- `S3_REGION`: AWS region (default: us-east-1)
+- `S3_PREFIX`: Path prefix within bucket (default: coupons/)
+
+**How it works:**
+1. When `S3_ENABLED=true`, the application first attempts to load coupon files from S3
+2. S3 keys are constructed as: `S3_PREFIX + filename` (e.g., `coupons/coupon_list_1.txt.gz`)
+3. If S3 loading fails (connection error, file not found, etc.), it automatically falls back to local file system
+4. When `S3_ENABLED=false`, only local file system is used
+
+**AWS Credentials:**
+The application uses the AWS SDK default credential chain, which checks for credentials in this order:
+1. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
+2. Shared credentials file (`~/.aws/credentials`)
+3. IAM instance profile (when running on EC2)
+
+**Example S3 setup:**
+```bash
+# Enable S3
+S3_ENABLED=true
+S3_BUCKET=my-company-coupons
+S3_REGION=ap-southeast-2
+S3_PREFIX=production/coupons/
+
+# AWS credentials (if not using IAM role)
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+```
+
 ## Architecture
 
 ### Layered Architecture
@@ -454,6 +501,7 @@ The application follows a clean layered architecture:
 ### Concurrent Promo Code Validation
 
 The promotional code validation system uses a concurrent multi-file lookup strategy:
+
 - Reads multiple gzipped coupon files in parallel
 - Validates codes against configurable minimum match count
 - Uses goroutines and channels for efficient concurrent processing
@@ -512,6 +560,7 @@ This project is licensed under the MIT Licence.
 ## Contributing
 
 This is a demonstration project. For production use, consider:
+
 - Adding database migrations
 - Implementing rate limiting
 - Adding request/response encryption

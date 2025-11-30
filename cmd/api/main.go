@@ -51,8 +51,28 @@ func run() error {
 	productRepo := repository.NewProductRepository(pool, logger)
 	orderRepo := repository.NewOrderRepository(pool, logger)
 
+	// Initialize coupon loader with S3 and local fallback
+	fileLoader := coupon.NewFileLoader(logger)
+	var couponLoader coupon.Loader
+
+	if cfg.S3.Enabled {
+		// Create S3 loader
+		s3Loader, err := coupon.NewS3Loader(ctx, cfg.S3.Bucket, cfg.S3.Region, logger)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Msg("failed to initialise S3 loader, falling back to local file system only")
+			couponLoader = fileLoader
+		} else {
+			couponLoader = s3Loader
+		}
+	} else {
+		// S3 disabled, use local file system only
+		couponLoader = fileLoader
+		logger.Info().Msg("using local file system for coupon files (S3 disabled)")
+	}
+
 	// Initialize coupon validator
-	couponLoader := coupon.NewFileLoader(logger)
 	validatorConfig := coupon.DefaultValidatorConfig()
 	validator, err := coupon.NewValidator(ctx, validatorConfig, couponLoader, logger)
 	if err != nil {

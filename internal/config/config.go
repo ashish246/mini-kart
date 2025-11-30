@@ -12,6 +12,7 @@ type Config struct {
 	Database DatabaseConfig
 	Logger   LoggerConfig
 	Auth     AuthConfig
+	S3       S3Config
 }
 
 // ServerConfig holds server-related configuration.
@@ -43,6 +44,14 @@ type AuthConfig struct {
 	APIKey string
 }
 
+// S3Config holds AWS S3 configuration for coupon files.
+type S3Config struct {
+	Enabled bool
+	Bucket  string
+	Region  string
+	Prefix  string // Path prefix within bucket (e.g., "coupons/")
+}
+
 // Load loads configuration from environment variables.
 func Load() (*Config, error) {
 	cfg := &Config{
@@ -66,6 +75,12 @@ func Load() (*Config, error) {
 		},
 		Auth: AuthConfig{
 			APIKey: getEnv("API_KEY", ""),
+		},
+		S3: S3Config{
+			Enabled: getEnvAsBool("S3_ENABLED", false),
+			Bucket:  getEnv("S3_BUCKET", ""),
+			Region:  getEnv("S3_REGION", "us-east-1"),
+			Prefix:  getEnv("S3_PREFIX", "coupons/"),
 		},
 	}
 
@@ -129,6 +144,15 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid log format: %s (must be json or console)", c.Logger.Format)
 	}
 
+	if c.S3.Enabled {
+		if c.S3.Bucket == "" {
+			return fmt.Errorf("S3 bucket is required when S3 is enabled")
+		}
+		if c.S3.Region == "" {
+			return fmt.Errorf("S3 region is required when S3 is enabled")
+		}
+	}
+
 	return nil
 }
 
@@ -162,6 +186,16 @@ func getEnvAsInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intValue, err := strconv.Atoi(value); err == nil {
 			return intValue
+		}
+	}
+	return defaultValue
+}
+
+// getEnvAsBool retrieves an environment variable as a boolean or returns a default value.
+func getEnvAsBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
 		}
 	}
 	return defaultValue
