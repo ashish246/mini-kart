@@ -1,0 +1,65 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mini-kart-postgres
+    environment:
+      POSTGRES_DB: minikart
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - mini-kart-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mini-kart-api
+    environment:
+      # Server Configuration
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: minikart
+      DB_MAX_CONNECTIONS: 25
+      DB_MIN_CONNECTIONS: 5
+      DB_MAX_CONN_LIFETIME: 300
+
+      # Logging Configuration
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+
+      # Authentication
+      API_KEY: ${API_KEY:-change-me-in-production}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mini-kart-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  mini-kart-network:
+    driver: bridge

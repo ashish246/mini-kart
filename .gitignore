@@ -30,3 +30,31 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+/.clinerules
+/.claude
+/.serena
+
+**/.venv
+**/venv
+**/node_modules
+**/dist
+**/build
+**/__pycache__
+**/.pytest_cache
+**/.coverage
+**/.DS_Store
+**/.idea
+**/.vscode
+**/*.log
+**/*.log.*
+**/*.bak
+**/*.swp
+**/*.swo
+**/*.tmp
+**/*.tmp.*
+**/.env
+**/private*
+**/private.*
+CLAUDE.md
+/docs/questions.md
+/bin
