@@ -53,7 +53,7 @@ help:
 build:
 	@echo "Building application..."
 	@go build -o bin/api-$(VERSION) -ldflags="-s -w -X 'main.version=$(VERSION)' -X 'main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" cmd/api/main.go
-	@echo "Build complete: bin/api"
+	@echo "Build complete: bin/api-$(VERSION)"
 
 # run: Run the application (via Docker)
 run:

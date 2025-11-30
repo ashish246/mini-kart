@@ -14,7 +14,7 @@ import (
 type validator struct {
 	couponSets []CouponSet
 	logger     zerolog.Logger
-	mu         sync.RWMutex
+	// No mutex needed - coupon sets are read-only after initialization
 }
 
 // ValidatorConfig holds configuration for the coupon validator.
@@ -134,10 +134,7 @@ func (v *validator) Validate(ctx context.Context, promoCode string) error {
 		return model.ErrInvalidPromoLength
 	}
 
-	v.mu.RLock()
-	defer v.mu.RUnlock()
-
-	// Check presence in coupon files concurrently
+	// Check presence in coupon files concurrently with early termination
 	matchCount := v.countMatches(ctx, promoCode)
 
 	if matchCount < 2 {
@@ -157,42 +154,61 @@ func (v *validator) Validate(ctx context.Context, promoCode string) error {
 }
 
 // countMatches counts how many coupon files contain the given promo code.
-// Searches are performed concurrently for optimal performance.
+// Uses worker pool pattern with early termination when 2 matches are found.
 func (v *validator) countMatches(ctx context.Context, promoCode string) int {
-	type matchResult struct {
-		found bool
-	}
+	// Use buffered channel to prevent goroutine leaks on early termination
+	resultChan := make(chan bool, len(v.couponSets))
+	doneChan := make(chan struct{})
+	defer close(doneChan)
 
-	resultChan := make(chan matchResult, len(v.couponSets))
-	var wg sync.WaitGroup
-
+	// Launch workers for each coupon set
+	// Workers will exit early if doneChan is closed
 	for _, set := range v.couponSets {
-		wg.Add(1)
 		go func(s CouponSet) {
-			defer wg.Done()
-
-			// Check for context cancellation
+			// Check if we should exit early
 			select {
+			case <-doneChan:
+				return
 			case <-ctx.Done():
-				resultChan <- matchResult{found: false}
 				return
 			default:
 			}
 
 			found := s.Contains(promoCode)
-			resultChan <- matchResult{found: found}
+
+			// Try to send result, but exit if done or context cancelled
+			select {
+			case resultChan <- found:
+			case <-doneChan:
+				return
+			case <-ctx.Done():
+				return
+			}
 		}(set)
 	}
 
-	// Wait for all searches to complete
-	wg.Wait()
-	close(resultChan)
-
-	// Count matches
+	// Count matches with early termination
 	matches := 0
-	for result := range resultChan {
-		if result.found {
-			matches++
+	checked := 0
+
+	for checked < len(v.couponSets) {
+		select {
+		case found := <-resultChan:
+			checked++
+			if found {
+				matches++
+				// Early termination: if we have 2 matches, we're done
+				if matches >= 2 {
+					return matches
+				}
+			}
+			// Early termination: if we can't possibly get 2 matches, exit
+			remaining := len(v.couponSets) - checked
+			if matches+remaining < 2 {
+				return matches
+			}
+		case <-ctx.Done():
+			return matches
 		}
 	}
 
@@ -201,9 +217,6 @@ func (v *validator) countMatches(ctx context.Context, promoCode string) int {
 
 // Close releases resources held by the validator.
 func (v *validator) Close() error {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-
 	// Clear coupon sets to allow GC to reclaim memory
 	v.couponSets = nil
 

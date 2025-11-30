@@ -463,6 +463,7 @@ The application supports loading coupon files from AWS S3 with automatic fallbac
 - `S3_PREFIX`: Path prefix within bucket (default: coupons/)
 
 **How it works:**
+
 1. When `S3_ENABLED=true`, the application first attempts to load coupon files from S3
 2. S3 keys are constructed as: `S3_PREFIX + filename` (e.g., `coupons/coupon_list_1.txt.gz`)
 3. If S3 loading fails (connection error, file not found, etc.), it automatically falls back to local file system
@@ -470,11 +471,13 @@ The application supports loading coupon files from AWS S3 with automatic fallbac
 
 **AWS Credentials:**
 The application uses the AWS SDK default credential chain, which checks for credentials in this order:
+
 1. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
 2. Shared credentials file (`~/.aws/credentials`)
 3. IAM instance profile (when running on EC2)
 
 **Example S3 setup:**
+
 ```bash
 # Enable S3
 S3_ENABLED=true
@@ -542,6 +545,10 @@ The application includes health check endpoints:
 
 - **HTTP Health Check**: `GET /health`
 - **Docker Health Check**: Automated container health monitoring
+
+## Performance
+
+Refer to [performance-analysis.md](docs/performance-analysis.md) for possible recommendations to optimise the promo code validation as per the use case.
 
 ## Security
 
